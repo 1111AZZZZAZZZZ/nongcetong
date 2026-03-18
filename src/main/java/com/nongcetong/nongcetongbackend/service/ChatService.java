@@ -1,4 +1,4 @@
 package com.nongcetong.nongcetongbackend.service;
 
-public class ChatService {
+public interface ChatService {
 }
