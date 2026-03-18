@@ -1,6 +1,8 @@
 package com.nongcetong.nongcetongbackend.entity;
 
 import lombok.Data;
+
+import java.time.LocalDateTime;
 import java.util.Date;
 
 /**
@@ -8,9 +10,10 @@ import java.util.Date;
  */
 @Data
 public class User {
-    private Long id;             // 主键ID
-    private String username;     // 用户名（唯一）
-    private String password;     // 加密后的密码
-    private String role;         // 角色：user/admin
-    private Date createTime;     // 创建时间
+    private Long id;
+    private String username;
+    private String password;
+    private String email;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 }

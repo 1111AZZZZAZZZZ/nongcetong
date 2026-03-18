@@ -2,11 +2,16 @@ package com.nongcetong.nongcetongbackend.dto;
 
 import lombok.Data;
 
+import javax.validation.constraints.NotBlank;
+
 /**
  * 登录请求DTO
  */
 @Data
 public class UserLoginDTO {
-    private String username;     // 用户名
-    private String password;     // 原始密码
+    @NotBlank(message = "用户名不能为空")
+    private String username;
+
+    @NotBlank(message = "密码不能为空")
+    private String password;
 }
