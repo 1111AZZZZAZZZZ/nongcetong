@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.nongcetong.nongcetongbackend.mapper.ChatMessageMapper">
+
+    <resultMap id="ChatMessageResultMap" type="com.nongcetong.nongcetongbackend.entity.ChatMessage">
+        <id property="id" column="id"/>
+        <result property="sessionId" column="session_id"/>
+        <result property="userId" column="user_id"/>
+        <result property="role" column="role"/>
+        <result property="content" column="content"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO chat_message (session_id, user_id, role, content)
+        VALUES (#{sessionId}, #{userId}, #{role}, #{content})
+    </insert>
+
+    <select id="findBySessionId" resultMap="ChatMessageResultMap">
+        SELECT * FROM chat_message
+        WHERE session_id = #{sessionId}
+        ORDER BY created_at ASC
+            LIMIT 20
+    </select>
+
+</mapper>

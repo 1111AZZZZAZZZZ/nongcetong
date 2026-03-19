@@ -37,12 +37,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             Claims claims = jwtTokenProvider.parseToken(token);
             String username = claims.get("username", String.class);
 
+            // 用 userId 作为 principal，方便 Controller 直接取
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(
-                            username,
+                            userId,   // principal 改为 userId
                             null,
                             Collections.emptyList()
                     );
+
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
             SecurityContextHolder.getContext().setAuthentication(authentication);
         }
