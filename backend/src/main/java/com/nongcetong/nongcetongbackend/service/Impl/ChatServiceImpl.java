@@ -9,6 +9,7 @@ import com.nongcetong.nongcetongbackend.utils.LlmClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 
 import java.util.*;
 
@@ -39,6 +40,28 @@ public class ChatServiceImpl implements ChatService {
 
         return new ChatResponseDTO(dto.getSessionId(), reply);
     }
+    @Override
+    public Flux<String> chatStream(ChatRequestDTO dto, Long userId) {
+        // 1. 保存用户消息
+        saveMessage(dto.getSessionId(), userId, "user", dto.getMessage());
+
+        // 2. 拼接上下文
+        List<ChatMessage> history = chatMessageMapper.findBySessionId(dto.getSessionId());
+        List<Map<String, String>> messages = buildMessages(history);
+
+        // 3. 用 StringBuilder 收集完整回复，结束后存库
+        StringBuilder fullReply = new StringBuilder();
+
+        return llmClient.chatStream(messages)
+                .doOnNext(fullReply::append)
+                .doOnComplete(() ->
+                        saveMessage(dto.getSessionId(), userId, "assistant", fullReply.toString())
+                )
+                .doOnError(e ->
+                        saveMessage(dto.getSessionId(), userId, "assistant", "[ERROR] " + e.getMessage())
+                );
+    }
+
 
     private List<Map<String, String>> buildMessages(List<ChatMessage> history) {
         List<Map<String, String>> messages = new ArrayList<>();
