@@ -1,5 +1,6 @@
 package com.nongcetong.nongcetongbackend.controller;
 
+import com.nongcetong.nongcetongbackend.dto.Result;
 import com.nongcetong.nongcetongbackend.dto.UserLoginDTO;
 import com.nongcetong.nongcetongbackend.dto.UserRegisterDTO;
 import com.nongcetong.nongcetongbackend.service.UserService;
@@ -27,14 +28,14 @@ public class UserController {
     private final UserService userService;
 
     @PostMapping("/register")
-    public ResponseEntity<String> register(@RequestBody @Valid UserRegisterDTO dto) {
+    public Result<String> register(@RequestBody @Valid UserRegisterDTO dto) {
         userService.register(dto);
-        return ResponseEntity.ok("注册成功");
+        return Result.success();
     }
 
     @PostMapping("/login")
-    public ResponseEntity<Map<String, String>> login(@RequestBody @Valid UserLoginDTO dto) {
+    public Result<Map<String, String>> login(@RequestBody @Valid UserLoginDTO dto) {
         String token = userService.login(dto);
-        return ResponseEntity.ok(Map.of("token", token));
+        return Result.success(Map.of("token", token));
     }
 }

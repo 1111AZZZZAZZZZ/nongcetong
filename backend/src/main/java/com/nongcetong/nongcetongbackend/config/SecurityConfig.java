@@ -1,5 +1,8 @@
 package com.nongcetong.nongcetongbackend.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nongcetong.nongcetongbackend.dto.Result;
+import com.nongcetong.nongcetongbackend.exception.ErrorCode;
 import com.nongcetong.nongcetongbackend.interceptor.JwtAuthenticationFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -40,13 +43,16 @@ public class SecurityConfig {
                         .authenticationEntryPoint((request, response, authException) -> {
                             response.setContentType("application/json;charset=UTF-8");
                             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                            response.getWriter().write("{\"message\":\"未登录或token已过期\"}");
+                            Result<Void> result = Result.fail(ErrorCode.UNAUTHORIZED, "未登录或token已过期");
+                            response.getWriter().write(new ObjectMapper().writeValueAsString(result));
                         })
                         .accessDeniedHandler((request, response, accessDeniedException) -> {
                             response.setContentType("application/json;charset=UTF-8");
                             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                            response.getWriter().write("{\"message\":\"无权限访问\"}");
+                            Result<Void> result = Result.fail(ErrorCode.FORBIDDEN, "无权限访问");
+                            response.getWriter().write(new ObjectMapper().writeValueAsString(result));
                         })
+
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
