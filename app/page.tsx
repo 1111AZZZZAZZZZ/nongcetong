@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Loader2, Mic, CheckCircle2, Droplets, Wind, Zap, Activity, ChevronDown, RefreshCcw, LayoutDashboard, MessageSquare, Sun, Thermometer, Droplet, Power, Moon } from "lucide-react";
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import ReactMarkdown from 'react-markdown'; 
+import remarkGfm from 'remark-gfm'; 
 import dynamic from 'next/dynamic';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -40,7 +40,7 @@ const ActionWidget = ({ actionName, icon, type }: { actionName: string, icon: Re
   const [status, setStatus] = useState<'idle' | 'executing' | 'success'>('idle');
   const handleExecute = () => {
     setStatus('executing');
-    setTimeout(() => setStatus('success'), 1500);
+    setTimeout(() => setStatus('success'), 1500); 
   };
   if (status === 'success') return (
     <div className="mt-2 flex items-center gap-2 text-[10px] text-green-700 bg-green-50 p-2 rounded-lg border border-green-200">
@@ -72,7 +72,7 @@ export default function Home() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [temperature, setTemperature] = useState(26.5);
   const [humidity, setHumidity] = useState(42);
-  const [history, setHistory] = useState<{ time: string, temp: number, hum: number }[]>([]);
+  const [history, setHistory] = useState<{time: string, temp: number, hum: number}[]>([]);
   const [isListening, setIsListening] = useState(false);
 
   // 模拟趋势数据
@@ -88,8 +88,8 @@ export default function Home() {
       const newTemp = Number((activeGhouse.baseTemp + Math.random() * 4 - 2).toFixed(1));
       const newHum = Math.floor(activeGhouse.baseHum + Math.random() * 10 - 5);
       setTemperature(newTemp); setHumidity(newHum);
-      setHistory(prev => [...prev, { time: new Date().toLocaleTimeString([], { second: '2-digit' }), temp: newTemp, hum: newHum }].slice(-15));
-    }, 3000);
+      setHistory(prev => [...prev, { time: new Date().toLocaleTimeString([], {second:'2-digit'}), temp: newTemp, hum: newHum }].slice(-15));
+    }, 3000); 
     return () => clearInterval(interval);
   }, [activeGhouse]);
 
@@ -103,15 +103,13 @@ export default function Home() {
     setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: userText }]);
     setMyInput(""); setIsLoading(true);
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        body: JSON.stringify({
-          messages: [
-            { role: 'system', content: `农业专家。当前${activeGhouse.name}。温${temperature}湿${humidity}。补水发指令:{"cmd": "water", "action": "开启滴灌"}。` },
-            ...messages.slice(-2).map(m => ({ role: m.role, content: m.content })),
-            { role: 'user', content: userText }
-          ]
-        })
+      const res = await fetch('/api/chat', { 
+        method: 'POST', 
+        body: JSON.stringify({ messages: [
+          { role: 'system', content: `农业专家。当前${activeGhouse.name}。温${temperature}湿${humidity}。补水发指令:{"cmd": "water", "action": "开启滴灌"}。` },
+          ...messages.slice(-2).map(m => ({ role: m.role, content: m.content })),
+          { role: 'user', content: userText }
+        ]})
       });
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
@@ -137,7 +135,7 @@ export default function Home() {
 
   return (
     <div className={`h-screen w-screen flex flex-col overflow-hidden transition-colors duration-500 ${isDarkMode ? 'dark bg-zinc-950 text-white' : 'bg-[#f8fafc] text-zinc-900'}`}>
-
+      
       {/* 顶部导航栏 */}
       <header className="h-14 shrink-0 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 px-8 flex items-center justify-between z-50 shadow-sm">
         <div className="flex items-center gap-3">
@@ -157,7 +155,7 @@ export default function Home() {
 
       {/* 核心分栏布局 (锁定 100% 屏幕高度) */}
       <main className="flex-1 overflow-hidden p-4 grid grid-cols-12 gap-6">
-
+        
         {/* 👈 左侧分栏：监控大盘 */}
         <section className="col-span-12 md:col-span-5 lg:col-span-4 h-full flex flex-col overflow-hidden">
           <Card className="flex-1 shadow-lg border-none bg-white dark:bg-zinc-900 rounded-[2.5rem] overflow-hidden flex flex-col border border-zinc-100 dark:border-zinc-800">
@@ -167,7 +165,7 @@ export default function Home() {
                 <span className="font-bold tracking-tight text-sm">监测大盘</span>
               </div>
               <div className="relative">
-                <select
+                <select 
                   value={activeGhouse.id}
                   onChange={(e) => {
                     const s = GREENHOUSES.find(g => g.id === e.target.value);
@@ -182,15 +180,15 @@ export default function Home() {
             </div>
 
             <CardContent className="flex-1 p-5 flex flex-col gap-4 overflow-hidden min-h-0">
-
+              
               {/* 1. 环境趋势 (高度自适应) */}
               <div className="flex-1 min-h-[140px] flex flex-col space-y-2">
                 <div className="flex justify-between items-center px-1 shrink-0">
-                  <h3 className="text-[9px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-1.5"><Thermometer className="w-3 h-3" /> 环境趋势</h3>
-                  <div className="flex gap-3 text-[8px] font-bold">
-                    <span className="text-orange-500">● 温度</span>
-                    <span className="text-blue-500">● 湿度</span>
-                  </div>
+                   <h3 className="text-[9px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-1.5"><Thermometer className="w-3 h-3"/> 环境趋势</h3>
+                   <div className="flex gap-3 text-[8px] font-bold">
+                     <span className="text-orange-500">● 温度</span>
+                     <span className="text-blue-500">● 湿度</span>
+                   </div>
                 </div>
                 <div className="flex-1 bg-zinc-50 dark:bg-zinc-950 rounded-2xl p-2 border border-zinc-100 dark:border-zinc-800 shadow-inner overflow-hidden">
                   <ResponsiveContainer width="100%" height="100%">
@@ -252,18 +250,18 @@ export default function Home() {
                 <div key={m.id} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2`}>
                   <div className={`max-w-[85%] p-5 rounded-[2rem] shadow-sm text-sm leading-relaxed ${m.role === 'user' ? 'bg-green-800 text-white rounded-tr-none shadow-green-100' : 'bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200/60 dark:border-zinc-700 rounded-tl-none shadow-zinc-100'}`}>
                     {m.role === 'user' ? m.content : (
-                      m.content === "" ? <div className="flex gap-2 py-1"><div className="w-2 h-2 bg-green-400 rounded-full animate-bounce" /></div> :
-                        <div className="space-y-4">
-                          <div className="prose prose-sm prose-emerald dark:prose-invert max-w-none"><ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown></div>
-                          {m.command && (
-                            (() => {
-                              try {
-                                const c = JSON.parse(m.command);
-                                return <ActionWidget actionName={c.action} icon={c.cmd === 'water' ? <Droplets className="w-4 h-4" /> : <Wind className="w-4 h-4" />} type={c.cmd === 'water' ? 'water' : 'wind'} />;
-                              } catch { return null; }
-                            })()
-                          )}
-                        </div>
+                      m.content === "" ? <div className="flex gap-2 py-1"><div className="w-2 h-2 bg-green-400 rounded-full animate-bounce" /></div> : 
+                      <div className="space-y-4">
+                        <div className="prose prose-sm prose-emerald dark:prose-invert max-w-none"><ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown></div>
+                        {m.command && (
+                          (() => {
+                            try {
+                              const c = JSON.parse(m.command);
+                              return <ActionWidget actionName={c.action} icon={c.cmd === 'water' ? <Droplets className="w-4 h-4"/> : <Wind className="w-4 h-4"/>} type={c.cmd === 'water' ? 'water' : 'wind'} />;
+                            } catch { return null; }
+                          })()
+                        )}
+                      </div>
                     )}
                   </div>
                   {/* PDF 导出 */}
@@ -271,7 +269,7 @@ export default function Home() {
                     <div className="mt-3 ml-3 flex items-center gap-4">
                       <ExportButton messageId={m.id} />
                       <div className="h-4 w-[1px] bg-zinc-200 dark:bg-zinc-800" />
-                      <span className="text-[10px] text-zinc-400 font-bold uppercase flex items-center gap-1.5"><Zap className="w-3 h-3 text-orange-400 fill-orange-400" /> AI 诊断完成</span>
+                      <span className="text-[10px] text-zinc-400 font-bold uppercase flex items-center gap-1.5"><Zap className="w-3 h-3 text-orange-400 fill-orange-400"/> AI 诊断完成</span>
                     </div>
                   )}
                 </div>
