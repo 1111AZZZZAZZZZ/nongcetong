@@ -1,97 +1,36 @@
-# 农测通后端系统（nongcetong-backend）
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-一个基于 Spring Boot + Spring Security + MyBatis 构建的智能农业问答后端系统。  
-项目面向多模态对话与知识增强场景，支持用户认证、知识库上传与检索、智能对话、隐私保护、工具调用等功能。
+## Getting Started
 
----
+First, run the development server:
 
-## 一、项目简介
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
 
-农测通后端系统旨在实现一个面向农业场景的智能问答平台。  
-系统支持用户注册登录、知识库文件上传、基于文档的检索增强问答（RAG），并计划扩展图片理解、语音转文字、联网搜索、隐私脱敏、结构化组件输出等功能。
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-本项目主要解决以下问题：
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-- 用户可上传 PDF / Markdown 文档，构建个人知识库
-- 在对话时自动检索相关知识片段，提升回答准确性
-- 支持统一身份认证，隔离不同用户数据
-- 在发送给大模型前对敏感信息进行脱敏处理
-- 在需要时调用外部工具获取实时信息
-- 支持文本、语音、图片等多模态输入
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
----
+## Learn More
 
-## 二、技术栈
+To learn more about Next.js, take a look at the following resources:
 
-### 后端框架
-- Spring Boot
-- Spring Security 6
-- MyBatis
-- JWT
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-### 数据存储
-- MySQL
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-### 文件处理
-- PDF 解析
-- Markdown 文本提取
+## Deploy on Vercel
 
-### AI 能力
-- 大语言模型调用
-- 向量化嵌入（Embedding）
-- 检索增强生成（RAG）
-- 视觉理解（规划中）
-- 语音转文字（规划中）
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
----
-
-## 三、项目功能
-
-## 1. 已完成功能
-
-### 1.1 用户模块
-- 用户注册
-- 用户登录
-- JWT 鉴权
-- 基于 Spring Security 的安全控制
-- 用户数据隔离
-
----
-
-## 2. 待实现 / 开发中功能
-
-### 2.1 多模态对话模块
-支持以下输入形式：
-- 文本输入
-- 语音输入（Speech-to-Text）
-- 图片输入（Vision）
-
-### 2.2 知识库检索模块（RAG）
-支持用户上传：
-- PDF 文件
-- Markdown 文件
-
-系统处理流程：
-1. 文件上传
-2. 文本提取
-3. 文本切分（Chunk）
-4. 向量化存储
-5. 对话时相关内容检索
-6. 将检索结果拼接到 Prompt 中，增强回答质量
-
-### 2.3 智能体工具模块（Agentic Tools）
-- 对实时问题自动调用搜索工具
-- 对搜索结果进行总结并返回
-
-### 2.4 隐私保护模块（Privacy Shield）
-- 检测并脱敏手机号、邮箱、身份证号等敏感信息
-- 防止敏感数据直接发送给模型或写入日志
-
-### 2.5 结构化组件输出
-除普通文本外，还支持返回：
-- 任务列表
-- 对比表格
-- Mermaid 图表代码
-
----
-
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
