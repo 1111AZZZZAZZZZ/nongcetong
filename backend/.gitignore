@@ -1,0 +1,60 @@
+HELP.md
+target/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+
+# IDE 相关（IDEA/Eclipse）
+.idea/
+*.iml
+*.ipr
+*.iws
+### IntelliJ IDEA ###
+.idea
+.settings/
+
+# 编译产物
+classes/
+*.class
+
+# Maven 缓存
+.mvn/
+mvnw
+mvnw.cmd
+
+# 本地敏感配置文件（核心过滤）
+src/main/resources/application-dev.properties
+src/main/resources/application-prod.properties
+
+# 日志文件
+logs/
+*.log
+
+# 临时文件
+*.tmp
+*.bak
