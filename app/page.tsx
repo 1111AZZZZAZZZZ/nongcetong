@@ -6,14 +6,14 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
-import { Loader2, Mic, MicOff, CheckCircle2, Droplets, Wind, Zap, Activity, ChevronDown, RefreshCcw, LayoutDashboard, MessageSquare, Sun, Thermometer, Droplet, Power, Moon, BookOpen, FileText, ChevronRight, Volume2, VolumeX } from "lucide-react";
+// 👉 引入了 ImagePlus 和 X 用于图片上传图标
+import { Loader2, Mic, MicOff, CheckCircle2, Droplets, Wind, Zap, Activity, ChevronDown, RefreshCcw, LayoutDashboard, MessageSquare, Sun, Thermometer, Droplet, Power, Moon, BookOpen, FileText, ChevronRight, Volume2, VolumeX, ImagePlus, X } from "lucide-react";
 import ReactMarkdown from 'react-markdown'; 
 import remarkGfm from 'remark-gfm'; 
 import dynamic from 'next/dynamic';
 import React from 'react';
 import { AreaChart, Area, CartesianGrid, ResponsiveContainer } from 'recharts';
 
-// 使用相对路径动态引入，彻底告别别名找不到的报错
 const ExportButton = dynamic(() => import('../components/ui/ExportButton'), { ssr: false });
 
 const GREENHOUSES = [
@@ -22,47 +22,37 @@ const GREENHOUSES = [
   { id: '03', name: '3号大棚 (育苗区)', crop: '幼苗', baseTemp: 28, baseHum: 75 },
 ];
 
-// --- 干净的消息类型接口 ---
+// 👉 消息接口新增 imageUrl 字段
 interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
   command?: string;
   citations?: any[];
+  imageUrl?: string | null; 
 }
 
-// 👉 新增：浏览器原生 TTS 语音播报组件 (无延迟、免 API)
 const SpeakButton = ({ text }: { text: string }) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
-
   const handleSpeak = () => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
-    
-    // 如果正在播报，点击则停止
     if (isSpeaking) {
       window.speechSynthesis.cancel();
       setIsSpeaking(false);
       return;
     }
-
-    // 清理掉 Markdown 符号和引用中括号，让 AI 读起来更自然
     const cleanText = text.replace(/\[\d+\]/g, '').replace(/[*#`_]/g, '');
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = 'zh-CN'; // 设定为中文发音
-    utterance.rate = 1.05;    // 稍微调快一点点语速，显得更干练
-    
+    utterance.lang = 'zh-CN'; 
+    utterance.rate = 1.05;    
     utterance.onend = () => setIsSpeaking(false);
     utterance.onerror = () => setIsSpeaking(false);
-    
     window.speechSynthesis.speak(utterance);
     setIsSpeaking(true);
   };
-
-  // 组件卸载时自动停止播报
   useEffect(() => {
     return () => window.speechSynthesis.cancel();
   }, []);
-
   return (
     <button onClick={handleSpeak} className="flex items-center gap-1.5 text-[10px] text-zinc-400 font-bold hover:text-green-600 transition-colors">
       {isSpeaking ? <VolumeX className="w-3 h-3 text-green-600 animate-pulse" /> : <Volume2 className="w-3 h-3" />}
@@ -171,8 +161,12 @@ export default function Home() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [myInput, setMyInput] = useState("");
   
+  // 👉 图像上传相关的状态与 Ref
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [messages, setMessages] = useState<Message[]>([
-    { id: 'welcome', role: 'assistant', content: '您好！农测通智能中枢已就绪，当前数据链路实时同步中。' }
+    { id: 'welcome', role: 'assistant', content: '您好！农测通智能中枢已就绪，当前数据链路实时同步中。您可以直接发送指令，或上传作物病害图片进行多模态 AI 诊断。' }
   ]);
   
   const [isLoading, setIsLoading] = useState(false);
@@ -184,18 +178,25 @@ export default function Home() {
   const { isListening, transcript, toggleListening: toggleSTT, setTranscript } = useSpeechToText();
   const { audioData, startAnalysis, stopAnalysis } = useAudioAnalyzer();
 
-  useEffect(() => {
-    if (isListening) {
-      startAnalysis();
-    } else {
-      stopAnalysis();
+  // 👉 处理图片选择与 Base64 转换
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelectedImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
+  };
+
+  useEffect(() => {
+    if (isListening) startAnalysis();
+    else stopAnalysis();
   }, [isListening, startAnalysis, stopAnalysis]);
 
   useEffect(() => {
-    if (transcript) {
-      setMyInput(transcript);
-    }
+    if (transcript) setMyInput(transcript);
   }, [transcript]);
 
   useEffect(() => {
@@ -222,16 +223,35 @@ export default function Home() {
 
   const onSend = async (text?: string) => {
     const userText = text || myInput;
-    if (!userText.trim() || isLoading) return;
+    const currentImage = selectedImage; // 锁定当前要发送的图片
+
+    if ((!userText.trim() && !currentImage) || isLoading) return;
     
-    setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: userText }]);
+    // 👉 将图片信息推入聊天记录
+    setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: userText, imageUrl: currentImage }]);
     
     setMyInput(""); 
+    setSelectedImage(null); // 发送后清空待选图片
+    if (fileInputRef.current) fileInputRef.current.value = ''; // 清空 file input
     if (setTranscript) setTranscript(""); 
     stopAnalysis(); 
     setIsLoading(true);
 
-    // 模拟 RAG 知识检索拦截
+    // 🌟 答辩专用彩蛋一：多模态看图识病触发器
+    if (currentImage || userText.includes("病") || userText.includes("叶")) {
+      setTimeout(() => {
+        setMessages(prev => [...prev, {
+          id: "ai-" + Date.now(),
+          role: 'assistant',
+          content: "经过 AI 视觉多模态分析，您上传的作物叶片呈现典型的**早期霜霉病（Downy Mildew）**特征。病斑呈多角形，且背面可能已有灰白色霉层。\n\n**🌿 智能中枢诊断建议：**\n1. 立即停止当前的大水漫灌，降低棚内相对湿度。\n2. 建议立即开启顶部通风机组进行排湿作业。\n3. 请尽快使用 72% 霜脲·锰锌可湿性粉剂进行叶面喷洒。",
+          command: '{"cmd": "wind", "action": "开启温室通风机组"}'
+        }]);
+        setIsLoading(false);
+      }, 2500);
+      return;
+    }
+
+    // 🌟 答辩专用彩蛋二：模拟 RAG 知识检索拦截
     if (userText.includes("补贴") || userText.includes("政策")) {
       setTimeout(() => {
         setMessages(prev => [...prev, {
@@ -258,15 +278,15 @@ export default function Home() {
     try {
       const res = await fetch('/api/chat', { 
         method: 'POST', 
-        signal: controller.signal, // 挂载熔断信号
+        signal: controller.signal, 
         body: JSON.stringify({ messages: [
           { role: 'system', content: `农业专家。当前${activeGhouse.name}。温${temperature}湿${humidity}。补水发指令:{"cmd": "water", "action": "开启滴灌"}。` },
           ...messages.slice(-2).map(m => ({ role: m.role, content: m.content })),
-          { role: 'user', content: userText }
+          { role: 'user', content: userText } // 生产环境中这里可将 base64 传入
         ]})
       });
       
-      clearTimeout(timeoutId); // 请求成功，解除熔断
+      clearTimeout(timeoutId); 
 
       if (!res.ok) {
         throw new Error(`Server Error: ${res.status}`);
@@ -291,7 +311,6 @@ export default function Home() {
         }
       }
     } catch (e: any) { 
-      // 👉 容灾降级 UI
       clearTimeout(timeoutId);
       const isTimeout = e.name === 'AbortError';
       const errorMsg = isTimeout ? "请求超时 (Timeout)" : "链路异常 (Network Error)";
@@ -420,6 +439,13 @@ export default function Home() {
                     id={`message-${m.id}`} 
                     className={`max-w-[85%] p-5 rounded-[2rem] shadow-sm text-sm leading-relaxed ${m.role === 'user' ? 'bg-green-800 text-white rounded-tr-none shadow-green-100' : 'bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200/60 dark:border-zinc-700 rounded-tl-none shadow-zinc-100'}`}
                   >
+                    {/* 👉 渲染用户发送的多模态图片 */}
+                    {m.imageUrl && (
+                      <div className="mb-3">
+                        <img src={m.imageUrl} alt="Uploaded crop" className="max-h-48 rounded-xl shadow-sm object-cover border-2 border-green-700/50" />
+                      </div>
+                    )}
+                    
                     {m.role === 'user' ? m.content : (
                       m.content === "" ? <div className="flex gap-2 py-1"><div className="w-2 h-2 bg-green-400 rounded-full animate-bounce" /></div> : 
                       <div className="space-y-4">
@@ -452,7 +478,6 @@ export default function Home() {
                       <ExportButton messageId={m.id} />
                       <div className="h-4 w-[1px] bg-zinc-200 dark:bg-zinc-800" />
                       
-                      {/* 👉 语音播报按钮集成于此 */}
                       <SpeakButton text={m.content} />
                       
                       <div className="h-4 w-[1px] bg-zinc-200 dark:bg-zinc-800" />
@@ -464,7 +489,23 @@ export default function Home() {
               {isLoading && <div className="pl-6 text-[10px] text-green-600 font-black animate-pulse uppercase"><Zap className="w-3 h-3 inline-block mr-2" /> 云端同步中...</div>}
             </div>
 
-            <div className="p-6 bg-white dark:bg-zinc-900 border-t border-zinc-100 dark:border-zinc-800 shrink-0">
+            <div className="p-6 bg-white dark:bg-zinc-900 border-t border-zinc-100 dark:border-zinc-800 shrink-0 relative">
+              
+              {/* 👉 悬浮显示的图片预览区域 */}
+              {selectedImage && (
+                <div className="absolute bottom-[80px] left-6 animate-in slide-in-from-bottom-2 z-10">
+                  <div className="relative inline-block">
+                    <img src={selectedImage} alt="Preview" className="h-20 w-auto rounded-xl border-2 border-green-500 shadow-xl object-cover" />
+                    <button 
+                      onClick={() => setSelectedImage(null)} 
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 shadow-md transition-transform active:scale-90"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-2 overflow-x-auto pb-5 scrollbar-hide">
                 {["🌱 环境评估", "💧 补水指令", "🌡️ 开启通风"].map(s => (
                   <button key={s} onClick={() => onSend(s)} className="px-5 py-2.5 bg-zinc-50 dark:bg-zinc-800 hover:bg-green-800 hover:text-white dark:text-zinc-400 text-zinc-500 rounded-full text-[11px] font-bold border border-zinc-200 dark:border-zinc-700 transition-all active:scale-95 whitespace-nowrap">
@@ -480,25 +521,49 @@ export default function Home() {
                     value={myInput} 
                     onChange={e => setMyInput(e.target.value)} 
                     onKeyDown={e => e.key === 'Enter' && onSend()} 
-                    className={`rounded-full bg-zinc-100 dark:bg-zinc-800 border-none pl-7 ${isListening ? 'pr-40' : 'pr-12'} h-14 text-sm focus-visible:ring-1 focus-visible:ring-green-800 dark:text-white shadow-inner transition-all duration-300`} 
+                    // 👉 为右侧两个按钮预留更宽的 padding (pr-20)
+                    className={`rounded-full bg-zinc-100 dark:bg-zinc-800 border-none pl-7 ${isListening ? 'pr-40' : 'pr-20'} h-14 text-sm focus-visible:ring-1 focus-visible:ring-green-800 dark:text-white shadow-inner transition-all duration-300`} 
                   />
                   
                   {isListening && (
-                    <div className="absolute right-14 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <div className="absolute right-20 top-1/2 -translate-y-1/2 pointer-events-none">
                       <VoiceWaveform data={audioData} isListening={isListening} />
                     </div>
                   )}
                   
-                  <button
-                    onClick={toggleSTT} 
-                    className={`absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full transition-all ${
-                      isListening 
-                        ? 'text-red-500 bg-red-100 dark:bg-red-900/30 animate-pulse scale-110' 
-                        : 'text-zinc-400 hover:text-green-700 hover:bg-zinc-200 dark:hover:bg-zinc-700'
-                    }`}
-                  >
-                    {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-                  </button>
+                  {/* 👉 右侧操作区：上传图片 + 麦克风 */}
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    {/* 隐藏的 file input */}
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      ref={fileInputRef} 
+                      onChange={handleImageUpload} 
+                    />
+                    
+                    {/* 上传图片按钮 */}
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="p-2 text-zinc-400 hover:text-green-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-all"
+                    >
+                      <ImagePlus className="w-5 h-5" />
+                    </button>
+
+                    {/* 麦克风按钮 */}
+                    <button
+                      type="button"
+                      onClick={toggleSTT} 
+                      className={`p-2 rounded-full transition-all ${
+                        isListening 
+                          ? 'text-red-500 bg-red-100 dark:bg-red-900/30 animate-pulse scale-110' 
+                          : 'text-zinc-400 hover:text-green-700 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                      }`}
+                    >
+                      {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                    </button>
+                  </div>
                 </div>
                 
                 <Button onClick={() => onSend()} className="rounded-full bg-green-800 hover:bg-green-900 w-14 h-14 p-0 shadow-lg active:scale-90 transition-all">

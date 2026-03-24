@@ -32,11 +32,16 @@ export const useSpeechToText = () => {
         setTranscript(currentTranscript);
       };
 
-      recognitionRef.current.onerror = (event: any) => {
-        console.error('语音识别出错:', event.error);
-        setIsListening(false);
-      };
-
+     recognitionRef.current.onerror = (event: any) => {
+  // 👉 屏蔽 no-speech 报错，改为普通日志提示
+  if (event.error === 'no-speech') {
+    console.log('麦克风未检测到声音，已自动关闭待机。');
+  } else {
+    // 其他真正的错误用 warn 打印，也不会触发大红屏
+    console.warn('语音识别状态提示:', event.error); 
+  }
+  setIsListening(false);
+};
       recognitionRef.current.onend = () => {
         setIsListening(false);
       };
