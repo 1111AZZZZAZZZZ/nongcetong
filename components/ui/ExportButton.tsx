@@ -1,45 +1,47 @@
 'use client';
-
 import { useState } from 'react';
-import { Loader2, Download } from "lucide-react";
-import { jsPDF } from "jspdf";
-// 🌟 核心杀手锏：引入了专门支持 Tailwind v4 颜色的 Pro 版本
-import html2canvas from "html2canvas-pro"; 
+import { Download, Loader2 } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 export default function ExportButton({ messageId }: { messageId: string }) {
   const [isExporting, setIsExporting] = useState(false);
 
-  const exportToPDF = async () => {
+  const handleExport = async () => {
     setIsExporting(true);
     try {
+      // 1. 根据传入的 messageId 精准定位到页面上的那个聊天气泡 DOM
       const element = document.getElementById(`message-${messageId}`);
-      if (!element) return;
+      if (!element) {
+        console.error('未找到报告内容');
+        return;
+      }
 
-      // 完美兼容现代颜色空间的截图逻辑
+      // 2. 将 DOM 元素转化为高清 Canvas
       const canvas = await html2canvas(element, {
-        scale: 2, 
-        useCORS: true,
-        backgroundColor: '#ffffff'
+        scale: 2, // 提升 2 倍清晰度，防止 PDF 模糊
+        useCORS: true, // 允许跨域加载图标/字体
+        backgroundColor: '#ffffff', // 统一白色底色，去掉暗黑模式的干扰
+         // 给 PDF 四周留点白边，更好看
       });
 
-      const imgData = canvas.toDataURL('image/jpeg', 1.0);
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: 'a4' });
+      // 3. 将 Canvas 转成图片数据
+      const imgData = canvas.toDataURL('image/png');
+      
+      // 4. 初始化 PDF（根据气泡的宽高自适应尺寸）
+      const pdf = new jsPDF({
+        orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
+        unit: 'px',
+        format: [canvas.width + 40, canvas.height + 40] 
+      });
 
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const renderWidth = pdfWidth - 40; 
-      const renderHeight = (canvas.height * renderWidth) / canvas.width;
-
-      pdf.setFontSize(14);
-      pdf.setTextColor(21, 128, 61);
-      pdf.text("智慧农业智能中枢 - 农情分析报告", 20, 30);
-      pdf.addImage(imgData, 'JPEG', 20, 50, renderWidth, renderHeight);
-
-      const dateStr = new Date().toLocaleDateString('zh-CN').replace(/\//g, '-');
-      pdf.save(`1号大棚分析报告_${dateStr}.pdf`);
+      // 5. 写入图片并触发浏览器下载
+      pdf.addImage(imgData, 'PNG', 20, 20, canvas.width, canvas.height);
+      pdf.save(`农测通_AI诊断报告_${messageId.slice(-6)}.pdf`);
       
     } catch (error) {
-      console.error("PDF 导出失败:", error);
-      alert("报告生成失败，请稍后重试");
+      console.error('导出 PDF 失败:', error);
+      alert('导出失败，请重试');
     } finally {
       setIsExporting(false);
     }
@@ -47,17 +49,12 @@ export default function ExportButton({ messageId }: { messageId: string }) {
 
   return (
     <button
-      onClick={exportToPDF}
+      onClick={handleExport}
       disabled={isExporting}
-      className="mt-2 text-xs text-zinc-400 hover:text-green-600 flex items-center gap-1 transition-colors px-1"
-      title="将此分析报告导出为PDF"
+      className="flex items-center gap-1.5 text-[10px] text-zinc-400 font-bold hover:text-green-600 transition-colors disabled:opacity-50 cursor-pointer"
     >
-      {isExporting ? (
-        <Loader2 className="w-3 h-3 animate-spin" />
-      ) : (
-        <Download className="w-3 h-3" />
-      )}
-      {isExporting ? '正在生成文档...' : '导出为 PDF 报告'}
+      {isExporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+      {isExporting ? '生成报告中...' : '导出为 PDF 报告'}
     </button>
   );
 }
