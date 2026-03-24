@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
-import { Loader2, Mic, MicOff, CheckCircle2, Droplets, Wind, Zap, Activity, ChevronDown, RefreshCcw, LayoutDashboard, MessageSquare, Sun, Thermometer, Droplet, Power, Moon, BookOpen, FileText, ChevronRight } from "lucide-react";
+import { Loader2, Mic, MicOff, CheckCircle2, Droplets, Wind, Zap, Activity, ChevronDown, RefreshCcw, LayoutDashboard, MessageSquare, Sun, Thermometer, Droplet, Power, Moon, BookOpen, FileText, ChevronRight, Volume2, VolumeX } from "lucide-react";
 import ReactMarkdown from 'react-markdown'; 
 import remarkGfm from 'remark-gfm'; 
 import dynamic from 'next/dynamic';
@@ -30,6 +30,47 @@ interface Message {
   command?: string;
   citations?: any[];
 }
+
+// 👉 新增：浏览器原生 TTS 语音播报组件 (无延迟、免 API)
+const SpeakButton = ({ text }: { text: string }) => {
+  const [isSpeaking, setIsSpeaking] = useState(false);
+
+  const handleSpeak = () => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    
+    // 如果正在播报，点击则停止
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      return;
+    }
+
+    // 清理掉 Markdown 符号和引用中括号，让 AI 读起来更自然
+    const cleanText = text.replace(/\[\d+\]/g, '').replace(/[*#`_]/g, '');
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = 'zh-CN'; // 设定为中文发音
+    utterance.rate = 1.05;    // 稍微调快一点点语速，显得更干练
+    
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    
+    window.speechSynthesis.speak(utterance);
+    setIsSpeaking(true);
+  };
+
+  // 组件卸载时自动停止播报
+  useEffect(() => {
+    return () => window.speechSynthesis.cancel();
+  }, []);
+
+  return (
+    <button onClick={handleSpeak} className="flex items-center gap-1.5 text-[10px] text-zinc-400 font-bold hover:text-green-600 transition-colors">
+      {isSpeaking ? <VolumeX className="w-3 h-3 text-green-600 animate-pulse" /> : <Volume2 className="w-3 h-3" />}
+      {isSpeaking ? '停止播报' : '语音播报'}
+    </button>
+  );
+};
+
 
 // --- 内部子组件定义区 ---
 
@@ -130,7 +171,6 @@ export default function Home() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [myInput, setMyInput] = useState("");
   
-  // 👉 核心修复：这里必须是 Message[]，不能漏掉中括号！
   const [messages, setMessages] = useState<Message[]>([
     { id: 'welcome', role: 'assistant', content: '您好！农测通智能中枢已就绪，当前数据链路实时同步中。' }
   ]);
@@ -180,19 +220,18 @@ export default function Home() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, isLoading]);
 
- const onSend = async (text?: string) => {
+  const onSend = async (text?: string) => {
     const userText = text || myInput;
     if (!userText.trim() || isLoading) return;
     
     setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: userText }]);
     
-    // 清理状态并停止音频分析
     setMyInput(""); 
     if (setTranscript) setTranscript(""); 
     stopAnalysis(); 
     setIsLoading(true);
 
-    // 👉 答辩彩蛋：模拟 RAG 知识检索拦截
+    // 模拟 RAG 知识检索拦截
     if (userText.includes("补贴") || userText.includes("政策")) {
       setTimeout(() => {
         setMessages(prev => [...prev, {
@@ -209,7 +248,7 @@ export default function Home() {
       return;
     }
     
-    // 👉 防翻车核心：设置 15 秒超时熔断器
+    // 👉 防翻车机制：15秒超时熔断
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
 
@@ -229,7 +268,6 @@ export default function Home() {
       
       clearTimeout(timeoutId); // 请求成功，解除熔断
 
-      // 处理非 200 异常状态码 (如 502 Bad Gateway)
       if (!res.ok) {
         throw new Error(`Server Error: ${res.status}`);
       }
@@ -253,7 +291,7 @@ export default function Home() {
         }
       }
     } catch (e: any) { 
-      // 👉 容灾降级 UI：优雅处理超时和网络错误
+      // 👉 容灾降级 UI
       clearTimeout(timeoutId);
       const isTimeout = e.name === 'AbortError';
       const errorMsg = isTimeout ? "请求超时 (Timeout)" : "链路异常 (Network Error)";
@@ -412,6 +450,11 @@ export default function Home() {
                   {m.role === 'assistant' && m.content && m.id !== 'welcome' && (
                     <div className="mt-3 ml-3 flex items-center gap-4">
                       <ExportButton messageId={m.id} />
+                      <div className="h-4 w-[1px] bg-zinc-200 dark:bg-zinc-800" />
+                      
+                      {/* 👉 语音播报按钮集成于此 */}
+                      <SpeakButton text={m.content} />
+                      
                       <div className="h-4 w-[1px] bg-zinc-200 dark:bg-zinc-800" />
                       <span className="text-[10px] text-zinc-400 font-bold uppercase flex items-center gap-1.5"><Zap className="w-3 h-3 text-orange-400 fill-orange-400"/> AI 诊断完成</span>
                     </div>
