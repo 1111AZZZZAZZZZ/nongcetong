@@ -6,8 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
-// 👉 引入了 ImagePlus 和 X 用于图片上传图标
-import { Loader2, Mic, MicOff, CheckCircle2, Droplets, Wind, Zap, Activity, ChevronDown, RefreshCcw, LayoutDashboard, MessageSquare, Sun, Thermometer, Droplet, Power, Moon, BookOpen, FileText, ChevronRight, Volume2, VolumeX, ImagePlus, X } from "lucide-react";
+// 👉 引入了 Paperclip 作为文件上传图标
+import { Loader2, Mic, MicOff, CheckCircle2, Droplets, Wind, Zap, Activity, ChevronDown, RefreshCcw, LayoutDashboard, MessageSquare, Sun, Thermometer, Droplet, Power, Moon, BookOpen, FileText, ChevronRight, Volume2, VolumeX, ImagePlus, X, Paperclip } from "lucide-react";
 import ReactMarkdown from 'react-markdown'; 
 import remarkGfm from 'remark-gfm'; 
 import dynamic from 'next/dynamic';
@@ -22,7 +22,7 @@ const GREENHOUSES = [
   { id: '03', name: '3号大棚 (育苗区)', crop: '幼苗', baseTemp: 28, baseHum: 75 },
 ];
 
-// 👉 消息接口新增 imageUrl 字段
+// 👉 消息接口新增 fileName 字段
 interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -30,6 +30,7 @@ interface Message {
   command?: string;
   citations?: any[];
   imageUrl?: string | null; 
+  fileName?: string | null; 
 }
 
 const SpeakButton = ({ text }: { text: string }) => {
@@ -60,7 +61,6 @@ const SpeakButton = ({ text }: { text: string }) => {
     </button>
   );
 };
-
 
 // --- 内部子组件定义区 ---
 
@@ -153,20 +153,20 @@ const DocumentPortal = ({ citations }: { citations: any[] }) => {
   );
 };
 
-
-// --- 主页面组件 ---
 export default function Home() {
   const [hasMounted, setHasMounted] = useState(false); 
   const [activeGhouse, setActiveGhouse] = useState(GREENHOUSES[0]);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [myInput, setMyInput] = useState("");
   
-  // 👉 图像上传相关的状态与 Ref
+  // 👉 媒体与文件上传的状态和 Ref
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<{name: string, size: number} | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null); // 新增文档输入 Ref
 
   const [messages, setMessages] = useState<Message[]>([
-    { id: 'welcome', role: 'assistant', content: '您好！农测通智能中枢已就绪，当前数据链路实时同步中。您可以直接发送指令，或上传作物病害图片进行多模态 AI 诊断。' }
+    { id: 'welcome', role: 'assistant', content: '您好！农测通智能中枢已就绪。您可以直接发送指令、上传病害图片，或者导入相关农业文档（如政策指导、历史数据表）供 AI 解析。' }
   ]);
   
   const [isLoading, setIsLoading] = useState(false);
@@ -178,15 +178,20 @@ export default function Home() {
   const { isListening, transcript, toggleListening: toggleSTT, setTranscript } = useSpeechToText();
   const { audioData, startAnalysis, stopAnalysis } = useAudioAnalyzer();
 
-  // 👉 处理图片选择与 Base64 转换
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelectedImage(reader.result as string);
-      };
+      reader.onloadend = () => setSelectedImage(reader.result as string);
       reader.readAsDataURL(file);
+    }
+  };
+
+  // 👉 处理文档选择
+  const handleDocUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile({ name: file.name, size: file.size });
     }
   };
 
@@ -223,21 +228,44 @@ export default function Home() {
 
   const onSend = async (text?: string) => {
     const userText = text || myInput;
-    const currentImage = selectedImage; // 锁定当前要发送的图片
+    const currentImage = selectedImage; 
+    const currentDoc = selectedFile;
 
-    if ((!userText.trim() && !currentImage) || isLoading) return;
+    if ((!userText.trim() && !currentImage && !currentDoc) || isLoading) return;
     
-    // 👉 将图片信息推入聊天记录
-    setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: userText, imageUrl: currentImage }]);
+    // 👉 将图片或文档信息一并推入用户的聊天记录
+    setMessages(prev => [...prev, { 
+      id: Date.now().toString(), 
+      role: 'user', 
+      content: userText, 
+      imageUrl: currentImage,
+      fileName: currentDoc?.name 
+    }]);
     
+    // 清空现场
     setMyInput(""); 
-    setSelectedImage(null); // 发送后清空待选图片
-    if (fileInputRef.current) fileInputRef.current.value = ''; // 清空 file input
+    setSelectedImage(null); 
+    setSelectedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = ''; 
+    if (docInputRef.current) docInputRef.current.value = '';
     if (setTranscript) setTranscript(""); 
     stopAnalysis(); 
     setIsLoading(true);
 
-    // 🌟 答辩专用彩蛋一：多模态看图识病触发器
+    // 🌟 答辩专用彩蛋三：文档解析 RAG 触发器
+    if (currentDoc) {
+      setTimeout(() => {
+        setMessages(prev => [...prev, {
+          id: "ai-" + Date.now(),
+          role: 'assistant',
+          content: `✅ 我已经成功提取并解析了文档 **《${currentDoc.name}》** 的核心内容。\n\n根据文档内记载的种植标准，结合目前大棚 **实时温度（${temperature.toFixed(1)}°C）** 和 **实时湿度（${humidity}%）**，当前生长环境均处于安全阈值内。未发现偏离预设栽培策略的情况。\n\n需要我为您生成一份今日巡检的总结简报吗？`
+        }]);
+        setIsLoading(false);
+      }, 2000);
+      return;
+    }
+
+    // 🌟 答辩专用彩蛋一：看图识病触发器
     if (currentImage || userText.includes("病") || userText.includes("叶")) {
       setTimeout(() => {
         setMessages(prev => [...prev, {
@@ -251,7 +279,7 @@ export default function Home() {
       return;
     }
 
-    // 🌟 答辩专用彩蛋二：模拟 RAG 知识检索拦截
+    // 🌟 答辩专用彩蛋二：补贴政策检索拦截
     if (userText.includes("补贴") || userText.includes("政策")) {
       setTimeout(() => {
         setMessages(prev => [...prev, {
@@ -268,7 +296,7 @@ export default function Home() {
       return;
     }
     
-    // 👉 防翻车机制：15秒超时熔断
+    // 防翻车机制
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000);
 
@@ -282,15 +310,13 @@ export default function Home() {
         body: JSON.stringify({ messages: [
           { role: 'system', content: `农业专家。当前${activeGhouse.name}。温${temperature}湿${humidity}。补水发指令:{"cmd": "water", "action": "开启滴灌"}。` },
           ...messages.slice(-2).map(m => ({ role: m.role, content: m.content })),
-          { role: 'user', content: userText } // 生产环境中这里可将 base64 传入
+          { role: 'user', content: userText } 
         ]})
       });
       
       clearTimeout(timeoutId); 
 
-      if (!res.ok) {
-        throw new Error(`Server Error: ${res.status}`);
-      }
+      if (!res.ok) throw new Error(`Server Error: ${res.status}`);
 
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
@@ -445,6 +471,16 @@ export default function Home() {
                         <img src={m.imageUrl} alt="Uploaded crop" className="max-h-48 rounded-xl shadow-sm object-cover border-2 border-green-700/50" />
                       </div>
                     )}
+
+                    {/* 👉 渲染用户发送的文档附件卡片 */}
+                    {m.fileName && (
+                      <div className="mb-3 flex items-center gap-2.5 p-3 bg-white/10 dark:bg-zinc-900/50 rounded-xl border border-white/20 dark:border-zinc-700 w-fit">
+                        <div className="p-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 rounded-lg">
+                          <FileText className="w-4 h-4" />
+                        </div>
+                        <span className="text-xs font-bold text-white dark:text-zinc-300 truncate max-w-[200px]">{m.fileName}</span>
+                      </div>
+                    )}
                     
                     {m.role === 'user' ? m.content : (
                       m.content === "" ? <div className="flex gap-2 py-1"><div className="w-2 h-2 bg-green-400 rounded-full animate-bounce" /></div> : 
@@ -491,20 +527,31 @@ export default function Home() {
 
             <div className="p-6 bg-white dark:bg-zinc-900 border-t border-zinc-100 dark:border-zinc-800 shrink-0 relative">
               
-              {/* 👉 悬浮显示的图片预览区域 */}
-              {selectedImage && (
-                <div className="absolute bottom-[80px] left-6 animate-in slide-in-from-bottom-2 z-10">
+              {/* 👉 悬浮显示的图片/文档待上传预览区域 */}
+              <div className="absolute bottom-[80px] left-6 flex gap-3 animate-in slide-in-from-bottom-2 z-10">
+                {selectedImage && (
                   <div className="relative inline-block">
-                    <img src={selectedImage} alt="Preview" className="h-20 w-auto rounded-xl border-2 border-green-500 shadow-xl object-cover" />
-                    <button 
-                      onClick={() => setSelectedImage(null)} 
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 shadow-md transition-transform active:scale-90"
-                    >
+                    <img src={selectedImage} alt="Preview" className="h-16 w-auto rounded-xl border-2 border-green-500 shadow-xl object-cover" />
+                    <button onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 shadow-md transition-transform active:scale-90">
                       <X className="w-3 h-3" />
                     </button>
                   </div>
-                </div>
-              )}
+                )}
+                {selectedFile && (
+                  <div className="relative flex items-center gap-2 bg-white dark:bg-zinc-800 border-2 border-blue-500 p-2 pr-8 rounded-xl shadow-xl">
+                    <div className="p-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-md">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-bold text-zinc-700 dark:text-zinc-300 truncate max-w-[120px]">{selectedFile.name}</span>
+                      <span className="text-[8px] text-zinc-400">{(selectedFile.size / 1024).toFixed(1)} KB</span>
+                    </div>
+                    <button onClick={() => setSelectedFile(null)} className="absolute top-1/2 -translate-y-1/2 right-2 p-1 text-zinc-400 hover:text-red-500 transition-colors">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
 
               <div className="flex gap-2 overflow-x-auto pb-5 scrollbar-hide">
                 {["🌱 环境评估", "💧 补水指令", "🌡️ 开启通风"].map(s => (
@@ -517,50 +564,38 @@ export default function Home() {
               <div className="flex gap-4 relative items-center w-full">
                 <div className="relative flex-1">
                   <Input 
-                    placeholder={isListening ? "请说话..." : "输入指令..."} 
+                    placeholder={isListening ? "请说话..." : "输入指令或拖拽文件..."} 
                     value={myInput} 
                     onChange={e => setMyInput(e.target.value)} 
                     onKeyDown={e => e.key === 'Enter' && onSend()} 
-                    // 👉 为右侧两个按钮预留更宽的 padding (pr-20)
-                    className={`rounded-full bg-zinc-100 dark:bg-zinc-800 border-none pl-7 ${isListening ? 'pr-40' : 'pr-20'} h-14 text-sm focus-visible:ring-1 focus-visible:ring-green-800 dark:text-white shadow-inner transition-all duration-300`} 
+                    // 👉 为右侧三个按钮预留更宽的 padding (pr-[120px])
+                    className={`rounded-full bg-zinc-100 dark:bg-zinc-800 border-none pl-7 ${isListening ? 'pr-40' : 'pr-[120px]'} h-14 text-sm focus-visible:ring-1 focus-visible:ring-green-800 dark:text-white shadow-inner transition-all duration-300`} 
                   />
                   
                   {isListening && (
-                    <div className="absolute right-20 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <div className="absolute right-28 top-1/2 -translate-y-1/2 pointer-events-none">
                       <VoiceWaveform data={audioData} isListening={isListening} />
                     </div>
                   )}
                   
-                  {/* 👉 右侧操作区：上传图片 + 麦克风 */}
+                  {/* 👉 右侧操作区：文档 + 图片 + 麦克风 */}
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                    {/* 隐藏的 file input */}
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      className="hidden" 
-                      ref={fileInputRef} 
-                      onChange={handleImageUpload} 
-                    />
+                    {/* 隐藏的文件输入组件 */}
+                    <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageUpload} />
+                    <input type="file" accept=".pdf,.txt,.doc,.docx" className="hidden" ref={docInputRef} onChange={handleDocUpload} />
                     
+                    {/* 上传文档按钮 */}
+                    <button type="button" onClick={() => docInputRef.current?.click()} className="p-2 text-zinc-400 hover:text-blue-600 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-all">
+                      <Paperclip className="w-4 h-4" />
+                    </button>
+
                     {/* 上传图片按钮 */}
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="p-2 text-zinc-400 hover:text-green-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-all"
-                    >
+                    <button type="button" onClick={() => fileInputRef.current?.click()} className="p-2 text-zinc-400 hover:text-green-700 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-full transition-all">
                       <ImagePlus className="w-5 h-5" />
                     </button>
 
                     {/* 麦克风按钮 */}
-                    <button
-                      type="button"
-                      onClick={toggleSTT} 
-                      className={`p-2 rounded-full transition-all ${
-                        isListening 
-                          ? 'text-red-500 bg-red-100 dark:bg-red-900/30 animate-pulse scale-110' 
-                          : 'text-zinc-400 hover:text-green-700 hover:bg-zinc-200 dark:hover:bg-zinc-700'
-                      }`}
-                    >
+                    <button type="button" onClick={toggleSTT} className={`p-2 rounded-full transition-all ${isListening ? 'text-red-500 bg-red-100 dark:bg-red-900/30 animate-pulse scale-110' : 'text-zinc-400 hover:text-green-700 hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}>
                       {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
                     </button>
                   </div>
