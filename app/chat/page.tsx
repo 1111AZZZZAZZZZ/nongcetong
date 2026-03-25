@@ -1,6 +1,6 @@
 'use client';
 import { useSpeechToText } from '../../hooks/useSpeechToText'; 
-import { useAudioAnalyzer } from '../../hooks/useAudioAnalyzer'; 
+import { useAudioAnalyzer } from '../../hooks/useAudioAnalyzer';
 import VoiceWaveform from '../../components/ui/VoiceWaveform'; 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../../components/ui/button";

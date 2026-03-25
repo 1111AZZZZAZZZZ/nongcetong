@@ -1,14 +1,10 @@
 import type { NextConfig } from "next";
 
-const nextConfig = {
-  // 比赛冲刺期特权：忽略 ESLint 和 TS 类型检查导致的打包失败
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  // 允许使用 WebAssembly (为了本地隐私脱敏模型)
+const nextConfig: NextConfig = {
+  // 必须加上这个空对象，明确告诉 Next.js 16 咱们兼顾了 Turbopack
+  turbopack: {},
+
+  // 必须保留的 WebAssembly 兼容配置
   webpack: (config: any) => {
     config.resolve.alias = {
       ...config.resolve.alias,
