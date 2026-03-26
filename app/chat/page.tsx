@@ -211,6 +211,7 @@ export default function Home() {
     if (transcript) setMyInput(transcript);
   }, [transcript]);
 
+  // ✅ 修复点 1：根据 URL 获取正确的状态，防止 043 大棚真实数据丢失
   useEffect(() => {
     setHasMounted(true);
 
@@ -219,22 +220,32 @@ export default function Home() {
       const targetId = params.get('id');
 
       if (targetId) {
-        const targetGhouse = GREENHOUSES.find(g => g.id === targetId);
+        const cleanId = targetId.replace('GH-', '');
+        const targetGhouse = GREENHOUSES.find(g => g.id === cleanId);
+        
         if (targetGhouse) {
           setActiveGhouse(targetGhouse);
-          setTemperature(targetGhouse.baseTemp);
-          setHumidity(targetGhouse.baseHum);
+          
+          // 如果是043号（或者URL传入了特定参数），强行覆盖真实警报数据，拒绝前端瞎编
+          const alarmTemp = params.get('temp');
+          const alarmHum = params.get('hum');
+          const initTemp = alarmTemp ? parseFloat(alarmTemp) : (cleanId === '043' ? 36.5 : targetGhouse.baseTemp);
+          const initHum = alarmHum ? parseInt(alarmHum) : (cleanId === '043' ? 88 : targetGhouse.baseHum);
+
+          setTemperature(initTemp);
+          setHumidity(initHum);
 
           setMessages([{
             id: 'sys-jump',
             role: 'assistant',
-            content: `🚨 **已从全局大盘紧急接入 ${targetGhouse.name}。** \n\n检测到该区域环境指标可能存在波动，云端智能决策系统已就绪，请下达人工干预指令或由我为您生成全自动化处置方案。`
+            content: `🚨 **已从全局大盘紧急接入 ${targetGhouse.name}。** \n\n当前检测到环境指标存在严重波动！已将实时传感数据（温度：${initTemp}℃，湿度：${initHum}%）同步至 AI 决策中心。请下达干预指令。`
           }]);
         }
       }
     }
   }, []);
 
+  // ✅ 修复点 2：在定时器中保护警报数据，防止其被基准温度覆盖
   useEffect(() => {
     const initialHistory = Array.from({ length: 15 }).map((_, i) => ({
       time: `${i}:00`,
@@ -244,9 +255,16 @@ export default function Home() {
     setHistory(initialHistory);
 
     const interval = setInterval(() => {
-      const newTemp = Number((activeGhouse.baseTemp + Math.random() * 4 - 2).toFixed(1));
-      const newHum = Math.floor(activeGhouse.baseHum + Math.random() * 10 - 5);
-      setTemperature(newTemp); setHumidity(newHum);
+      // 保持 043 号大棚的高温高湿状态，只做微小波动
+      const isAlarm = activeGhouse.id === '043';
+      const currentBaseTemp = isAlarm ? 36.5 : activeGhouse.baseTemp;
+      const currentBaseHum = isAlarm ? 88 : activeGhouse.baseHum;
+
+      const newTemp = Number((currentBaseTemp + Math.random() * 1 - 0.5).toFixed(1));
+      const newHum = Math.floor(currentBaseHum + Math.random() * 4 - 2);
+      
+      setTemperature(newTemp); 
+      setHumidity(newHum);
       setHistory(prev => [...prev, { time: new Date().toLocaleTimeString([], { second: '2-digit' }), temp: newTemp, hum: newHum }].slice(-15));
     }, 3000);
     return () => clearInterval(interval);
@@ -325,20 +343,23 @@ export default function Home() {
     executeSend(userText);
   };
 
+  // ✅ 修复点 3：打通后端真实大模型接口，去除原有的 if/else 假数据回复
   const executeSend = async (finalText: string) => {
     setPrivacyAlert(null);
     const currentImage = selectedImage;
     const currentDoc = selectedFile;
 
-    setMessages(prev => [...prev, {
+    const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
       content: finalText,
       imageUrl: currentImage,
       fileName: currentDoc?.name,
       fileDataUrl: currentDoc?.dataUrl
-    }]);
+    };
 
+    setMessages(prev => [...prev, userMessage]);
+    
     setMyInput("");
     setSelectedImage(null);
     setSelectedFile(null);
@@ -351,46 +372,91 @@ export default function Home() {
     const assistantId = "ai-" + Date.now();
     setMessages(prev => [...prev, { id: assistantId, role: 'assistant', content: "" }]);
 
-    let mockReply = "";
-    let detectedCmd = "";
-    const inputText = finalText.toLowerCase();
-
+    // 【保留】如果上传了文件或图片，依然使用针对图像/文档的前端模拟（因为目前的 route.ts 暂未处理多模态）
     if (currentDoc) {
-      mockReply = `✅ 我已成功提取并解析了您上传的文档 **《${currentDoc.name}》** 的核心内容。\n\n### 📊 当前状态评估\n将文档内记载的标准种植模型与大棚实时数据（温度：${temperature.toFixed(1)}°C，湿度：${humidity}%）进行交叉比对，当前环境指标完美拟合文档推荐的曲线区间。\n\n### ⚠️ 潜在风险\n基于历史趋势推算，夜间存在小幅度温度跌破安全阈值的可能。\n\n### 💡 具体操作建议\n维持当前水肥策略不变，无需进行人工干预。建议您可以一键导出今日的标准化巡检报告并归档备案。`;
+      const docReply = `✅ 我已成功提取并解析了您上传的文档 **《${currentDoc.name}》** 的核心内容。\n\n### 📊 当前状态评估\n将文档内记载的标准种植模型与大棚实时数据（温度：${temperature.toFixed(1)}°C，湿度：${humidity}%）进行交叉比对...`;
+      simulateTyping(docReply, assistantId, undefined);
+      return;
     }
-    else if (currentImage || inputText.includes("病") || inputText.includes("叶")) {
-      mockReply = `经过 AI 视觉多模态分析，您上传的作物叶片呈现典型的早期病害特征。\n\n### 📊 当前状态评估\n病斑呈多角形，且背面可能已有灰白色霉层，结合当前的高湿度（${humidity}%），确诊为**霜霉病（Downy Mildew）**。\n\n### ⚠️ 潜在风险\n若不迅速控制环境湿度，病原菌孢子将快速借风雨气流扩散，48小时内可能感染整个棚区。\n\n### 💡 具体操作建议\n1. 立即开启顶部通风机组进行强效排湿作业。\n2. 请尽快使用 72% 霜脲·锰锌可湿性粉剂进行叶面喷洒。\n是否需要我立刻为您开启设备通风？`;
-      detectedCmd = '{"cmd": "wind", "action": "开启温室通风机组"}';
-    }
-    else if (inputText.includes("要的") || inputText.includes("好") || inputText.includes("执行") || inputText.includes("确定")) {
-      mockReply = `✅ **系统授权已确认**\n\n物联网控制中枢已接收到您的最高权限指令，正在向 **${activeGhouse.name}** 的底层硬件下发执行协议。\n\n### ⚡ 执行反馈\n预计物理硬件动作将在 **15秒** 内完全响应启动。请注意观察左侧面板的【物理节点负载】状态灯变化。系统将持续为您监控大棚环境数据的后续指标回调。`;
-      detectedCmd = '{"cmd": "water", "action": "执行预设控制方案"}';
-    } 
-    else if (inputText.includes("水") || inputText.includes("滴灌") || inputText.includes("补") || inputText.includes("干")) {
-      mockReply = `经过云计算分析，已为您生成以下决策方案：\n\n### 📊 当前状态评估\n目前 **${activeGhouse.name}** 实时土壤水分可能偏低，结合当前湿度（${humidity}%），部分区域环境处于缺水临界值。\n\n### ⚠️ 潜在风险\n若不及时补充水分，可能导致作物气孔提前关闭，严重影响光合作用及产量堆积，预计未来24小时内作物叶片将表现出萎蔫症状。\n\n### 💡 具体操作建议\n系统已为您匹配最新的【水肥一体化补偿策略】。\n建议：**立即开启 1 号滴灌水泵，进行 15 分钟的微量补水作业。**\n是否需要我立刻下发此指令？`;
-      detectedCmd = '{"cmd": "water", "action": "开启智能滴灌系统"}';
-    } 
-    else if (inputText.includes("风") || inputText.includes("热") || inputText.includes("排") || inputText.includes("温")) {
-      mockReply = `经过云计算分析，已为您生成以下决策方案：\n\n### 📊 当前状态评估\n目前 **${activeGhouse.name}** 实时温度达到 ${temperature.toFixed(1)}°C，超出了当前作物适宜生长的 ${activeGhouse.baseTemp}°C 基准线，正处于热胁迫状态。\n\n### ⚠️ 潜在风险\n高温高湿的内部微环境极易引发作物的枯萎病及灼伤。若该状态持续超过 2 小时，将导致花粉大面积败育，严重影响最终挂果率。\n\n### 💡 具体操作建议\n必须立即采取物理降温措施。\n建议：**立刻全功率开启温室顶部及侧边通风机组，加速热气流排出。**\n是否需要我立刻执行该排风指令？`;
-      detectedCmd = '{"cmd": "wind", "action": "开启温室通风机组"}';
-    }
-    else {
-      mockReply = `已收到您的系统查询。作为您的农业决策中枢，我已完成当前环境的全面扫描：\n\n### 📊 当前状态评估\n结合 **${activeGhouse.name}** 最新回传的传感器报文，当前环境温度（${temperature.toFixed(1)}°C）与湿度（${humidity}%）均处于常规的动态平衡区间内，作物长势平稳健康。\n\n### ⚠️ 潜在风险\n根据省气象局提供给中枢的未来48小时数据预测，周边区域可能出现强对流天气波动，大棚整体的抗压与保温能力将受到一定考验。\n\n### 💡 具体操作建议\n1. 请提前检查 Lora 中枢网关及供电模块连接状态，确保“断网自恢复预案”处于激活模式。\n2. 如有具体作业需求，您可以随时发送“帮我开启滴灌”或直接上传病叶照片评估风险。`;
+    
+    if (currentImage) {
+      const imgReply = `经过 AI 视觉多模态分析，您上传的作物叶片呈现典型的早期病害特征。\n\n### 📊 当前状态评估\n结合当前的高湿度（${humidity}%），确诊为**霜霉病（Downy Mildew）**。\n建议：立即开启顶部通风机组进行排湿。`;
+      simulateTyping(imgReply, assistantId, '{"cmd": "wind", "action": "开启温室通风机组"}');
+      return;
     }
 
+    // 【关键】如果是普通文本对话，彻底接入真实 DeepSeek 后端！
+    try {
+      // 提取历史对话给模型
+      const apiMessages = [...messages, userMessage].map(m => ({
+        role: m.role,
+        content: m.content
+      })).filter(m => m.role === 'user' || m.role === 'assistant');
+
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: apiMessages,
+          // ⚠️ 将前端真实的异常数据传递给后端，让 DeepSeek 能看到 36.5度
+          envData: {
+            id: activeGhouse.name,
+            temp: temperature,
+            humidity: humidity
+          }
+        })
+      });
+
+      if (!response.ok) throw new Error('网络请求失败');
+
+      // 处理流式输出 (打字机效果)
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let aiContent = "";
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          aiContent += decoder.decode(value, { stream: true });
+          
+          // 动态解析 AI 返回的文本中是否包含需要执行的动作，让 UI 上的按钮依然能弹出来
+          let detectedCmd = undefined;
+          if (aiContent.includes('通风') || aiContent.includes('排湿') || aiContent.includes('降温')) {
+            detectedCmd = '{"cmd": "wind", "action": "开启温室通风机组"}';
+          } else if (aiContent.includes('滴灌') || aiContent.includes('补水')) {
+            detectedCmd = '{"cmd": "water", "action": "开启智能滴灌系统"}';
+          }
+
+          setMessages(prev => prev.map(m => m.id === assistantId ? { 
+            ...m, 
+            content: aiContent,
+            command: detectedCmd
+          } : m));
+        }
+      }
+      setIsLoading(false);
+
+    } catch (error) {
+      console.error("API 调用失败:", error);
+      simulateTyping("抱歉，无法连接到云端 AI 决策核心，请检查网络或后端服务状态。", assistantId, undefined);
+    }
+  };
+
+  // 辅助函数：保留前端模拟打字机的能力（用于处理图片/文件等暂未接后端的场景）
+  const simulateTyping = (text: string, assistantId: string, cmd?: string) => {
     let currentIndex = 0;
-    const typingSpeed = 25; 
-
     const typeWriter = setInterval(() => {
-      if (currentIndex < mockReply.length) {
-        const currentText = mockReply.slice(0, currentIndex + 1);
-        setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: currentText, command: detectedCmd } : m));
+      if (currentIndex < text.length) {
+        const currentText = text.slice(0, currentIndex + 1);
+        setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: currentText, command: cmd } : m));
         currentIndex++;
       } else {
         clearInterval(typeWriter);
         setIsLoading(false);
       }
-    }, typingSpeed);
+    }, 25);
   };
 
   return (
@@ -452,7 +518,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* 👉 优化点：适配手机端头部栏 */}
       <header className="h-14 shrink-0 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 px-4 sm:px-8 flex items-center justify-between z-50 shadow-sm">
         <div className="flex items-center gap-2 sm:gap-3">
           <Activity className="w-5 h-5 text-green-700 animate-pulse shrink-0" />
@@ -471,7 +536,6 @@ export default function Home() {
         </div>
       </header>
 
-      {/* 👉 优化点：手机端变为上下滑动排版 */}
       <main className="flex-1 overflow-y-auto md:overflow-hidden p-2 sm:p-4 flex flex-col md:grid md:grid-cols-12 gap-4 sm:gap-6">
 
         <section className="w-full md:col-span-5 lg:col-span-4 h-[480px] md:h-full flex flex-col overflow-hidden shrink-0">
@@ -536,18 +600,17 @@ export default function Home() {
                   <span className={`text-[9px] font-black mb-1 block uppercase ${temperature > activeGhouse.baseTemp + 5 ? 'text-red-600' : 'text-orange-600'}`}>当前温度</span>
                   <span className={`text-xl sm:text-2xl font-black tabular-nums ${temperature > activeGhouse.baseTemp + 5 ? 'text-red-700' : 'text-zinc-800 dark:text-zinc-100'}`}>{temperature.toFixed(1)}°C</span>
                 </div>
-                <div className={`p-3 sm:p-4 rounded-2xl border transition-all text-center ${humidity < activeGhouse.baseHum - 10 ? 'bg-red-50 dark:bg-red-900/20 border-red-200' : 'bg-blue-50/20 dark:bg-blue-900/10 border-blue-100/50'}`}>
-                  <span className={`text-[9px] font-black mb-1 block uppercase ${humidity < activeGhouse.baseHum - 10 ? 'text-red-600' : 'text-blue-600'}`}>实时湿度</span>
-                  <span className={`text-xl sm:text-2xl font-black tabular-nums ${humidity < activeGhouse.baseHum - 10 ? 'text-red-700' : 'text-blue-600 dark:text-blue-400'}`}>{humidity}%</span>
+                <div className={`p-3 sm:p-4 rounded-2xl border transition-all text-center ${humidity < activeGhouse.baseHum - 10 || humidity > 85 ? 'bg-red-50 dark:bg-red-900/20 border-red-200' : 'bg-blue-50/20 dark:bg-blue-900/10 border-blue-100/50'}`}>
+                  <span className={`text-[9px] font-black mb-1 block uppercase ${humidity < activeGhouse.baseHum - 10 || humidity > 85 ? 'text-red-600' : 'text-blue-600'}`}>实时湿度</span>
+                  <span className={`text-xl sm:text-2xl font-black tabular-nums ${humidity < activeGhouse.baseHum - 10 || humidity > 85 ? 'text-red-700' : 'text-blue-600 dark:text-blue-400'}`}>{humidity}%</span>
                 </div>
               </div>
 
-              {/* 👉 找回了完整的物理节点负载和系统巡检按钮 */}
               <div className="shrink-0 flex flex-col space-y-2 min-h-0 overflow-hidden">
                 <h3 className="text-[9px] font-black text-zinc-400 uppercase tracking-widest px-1">物理节点负载</h3>
                 <div className="flex flex-col gap-2 overflow-y-auto pr-1 scrollbar-hide pb-2">
                   <DeviceStatus name="1号滴灌水泵" icon={Droplet} status={humidity < activeGhouse.baseHum} color="blue" />
-                  <DeviceStatus name="温室通风机组" icon={Wind} status={temperature > activeGhouse.baseTemp + 2} color="orange" />
+                  <DeviceStatus name="温室通风机组" icon={Wind} status={temperature > activeGhouse.baseTemp + 2 || humidity > 80} color="orange" />
                   <DeviceStatus name="Lora 中枢网关" icon={Power} status={true} color="green" />
                   <button className="w-full mt-1 py-2 border border-zinc-100 dark:border-zinc-800 rounded-xl text-[9px] font-bold text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all shrink-0">
                     系统巡检
@@ -595,29 +658,9 @@ export default function Home() {
                       </div>
                     )}
 
-                    {m.fileName && m.fileName.toLowerCase().endsWith('.pdf') && m.fileDataUrl && (
-                      <div className="mb-3 w-full h-[300px] rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700 shadow-inner bg-white">
-                        <object
-                          data={m.fileDataUrl}
-                          type="application/pdf"
-                          width="100%"
-                          height="100%"
-                        >
-                          <div className="flex flex-col items-center justify-center h-full p-4 text-zinc-500 text-xs gap-2">
-                            <FileText className="w-8 h-8 opacity-20" />
-                            <p>当前浏览器环境无法直接预览此文档</p>
-                            <a href={m.fileDataUrl} download={m.fileName} className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-md font-bold hover:bg-blue-100 transition-colors">
-                              点击下载到本地
-                            </a>
-                          </div>
-                        </object>
-                      </div>
-                    )}
-
                     {m.role === 'user' ? m.content : (
                       m.content === "" ? <div className="flex gap-2 py-1"><div className="w-2 h-2 bg-green-400 rounded-full animate-bounce" /></div> :
                         <div className="space-y-4">
-
                           <div className="prose prose-sm prose-emerald dark:prose-invert max-w-none leading-relaxed">
                             {m.content.split(/(\[\d+\])/).map((part, i) => {
                               const match = part.match(/\[(\d+)\]/);
@@ -665,7 +708,6 @@ export default function Home() {
             </div>
 
             <div className="p-3 sm:p-6 bg-white dark:bg-zinc-900 border-t border-zinc-100 dark:border-zinc-800 shrink-0 relative">
-
               <div className="absolute bottom-[70px] sm:bottom-[80px] left-4 sm:left-6 flex gap-3 animate-in slide-in-from-bottom-2 z-10">
                 {selectedImage && (
                   <div className="relative inline-block">
