@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.nongcetong.nongcetongbackend.mapper.KnowledgeFileMapper">
+
+    <resultMap id="KnowledgeFileMap" type="com.nongcetong.nongcetongbackend.entity.KnowledgeFile">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="file_name" property="fileName"/>
+        <result column="file_path" property="filePath"/>
+        <result column="file_size" property="fileSize"/>
+        <result column="file_type" property="fileType"/>
+        <result column="status" property="status"/>
+        <result column="content" property="content"/>
+        <result column="error_message" property="errorMessage"/>
+        <result column="upload_time" property="uploadTime"/>
+        <result column="processed_time" property="processedTime"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <!-- 新增知识库文件 -->
+    <insert id="insert">
+        INSERT INTO knowledge_file 
+        (user_id, file_name, file_path, file_size, file_type, status, content, error_message, upload_time, processed_time, updated_at)
+        VALUES 
+        (#{userId}, #{fileName}, #{filePath}, #{fileSize}, #{fileType}, #{status}, #{content}, #{errorMessage}, #{uploadTime}, #{processedTime}, #{updatedAt})
+    </insert>
+
+    <!-- 根据 ID 查询 -->
+    <select id="selectById" resultMap="KnowledgeFileMap">
+        SELECT id, user_id, file_name, file_path, file_size, file_type, status, content, error_message, upload_time, processed_time, updated_at
+        FROM knowledge_file
+        WHERE id = #{id}
+    </select>
+
+    <!-- 查询当前用户的所有文件 -->
+    <select id="selectByUserId" resultMap="KnowledgeFileMap">
+        SELECT id, user_id, file_name, file_path, file_size, file_type, status, content, error_message, upload_time, processed_time, updated_at
+        FROM knowledge_file
+        WHERE user_id = #{userId}
+        ORDER BY upload_time DESC
+    </select>
+
+    <!-- 根据用户 ID 和文件 ID 查询（确保数据隔离） -->
+    <select id="selectByIdAndUserId" resultMap="KnowledgeFileMap">
+        SELECT id, user_id, file_name, file_path, file_size, file_type, status, content, error_message, upload_time, processed_time, updated_at
+        FROM knowledge_file
+        WHERE id = #{id} AND user_id = #{userId}
+    </select>
+
+    <!-- 按用户 ID 和状态查询 -->
+    <select id="selectByUserIdAndStatus" resultMap="KnowledgeFileMap">
+        SELECT id, user_id, file_name, file_path, file_size, file_type, status, content, error_message, upload_time, processed_time, updated_at
+        FROM knowledge_file
+        WHERE user_id = #{userId} AND status = #{status}
+        ORDER BY upload_time DESC
+    </select>
+
+    <!-- 按状态查询（用于后台处理） -->
+    <select id="selectByStatus" resultMap="KnowledgeFileMap">
+        SELECT id, user_id, file_name, file_path, file_size, file_type, status, content, error_message, upload_time, processed_time, updated_at
+        FROM knowledge_file
+        WHERE status = #{status}
+        ORDER BY upload_time ASC
+        LIMIT 100
+    </select>
+
+    <!-- 更新文件信息 -->
+    <update id="update">
+        UPDATE knowledge_file
+        <set>
+            <if test="fileName != null">file_name = #{fileName},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="content != null">content = #{content},</if>
+            <if test="errorMessage != null">error_message = #{errorMessage},</if>
+            <if test="processedTime != null">processed_time = #{processedTime},</if>
+            updated_at = NOW()
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <!-- 删除文件 -->
+    <delete id="deleteById">
+        DELETE FROM knowledge_file
+        WHERE id = #{id}
+    </delete>
+
+    <!-- 根据用户 ID 和文件 ID 删除 -->
+    <delete id="deleteByIdAndUserId">
+        DELETE FROM knowledge_file
+        WHERE id = #{id} AND user_id = #{userId}
+    </delete>
+
+    <!-- 关键词搜索文档片段（用于 RAG） -->
+    <select id="searchByKeyword" resultMap="KnowledgeFileMap">
+        SELECT id, user_id, file_name, file_path, file_size, file_type, status, content, error_message, upload_time, processed_time, updated_at
+        FROM knowledge_file
+        WHERE user_id = #{userId} 
+          AND status = 'READY'
+          AND (file_name LIKE CONCAT('%', #{keyword}, '%') OR content LIKE CONCAT('%', #{keyword}, '%'))
+        ORDER BY upload_time DESC
+        LIMIT 50
+    </select>
+
+</mapper>
