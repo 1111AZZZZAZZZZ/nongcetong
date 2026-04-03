@@ -1,0 +1,15 @@
+# Local development Spring properties (example)
+# Copy to application-dev.properties and fill values
+
+spring.datasource.url=jdbc:mysql://localhost:3306/nongcetong?useSSL=false&serverTimezone=UTC
+spring.datasource.username=root
+spring.datasource.password=123456
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+
+# Server port (optional)
+server.port=8080
+
+# Other envs (jwt keys, ai keys) can be placed in environment-specific files or system env variables
+
+# 可选：ASR 代理 URL（当配置后，后端会把上传的音频转发到该 URL 以获取识别结果）
+# asr.proxy.url=http://localhost:5000/transcribe
