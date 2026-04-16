@@ -11,6 +11,17 @@ export default function Home() {
     { id: 'welcome', role: 'assistant', content: '您好！我是智慧农业助手。当前1号大棚温湿度正常（26.5°C / 42%），有什么我可以帮您的？' }
   ]);
   const [isLoading, setIsLoading] = useState(false);
+  const [sessionId, setSessionId] = useState(() => {
+    // 从localStorage获取，没有则生成新的
+    const storedSessionId = localStorage.getItem('agri-session-id');
+    if (storedSessionId) {
+      return storedSessionId;
+    } else {
+      const newSessionId = Date.now().toString();
+      localStorage.setItem('agri-session-id', newSessionId);
+      return newSessionId;
+    }
+  });
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // 自动滚动到底部
@@ -20,67 +31,34 @@ export default function Home() {
     }
   }, [messages]);
 
-  // 发送函数：手动处理流式响应，绕过所有 SDK 报错
+  // 发送函数：手动处理响应
   const onSend = async () => {
     if (!myInput || !myInput.trim() || isLoading) return;
 
     const userText = myInput;
     const userMsg = { id: Date.now().toString(), role: 'user', content: userText };
-    
+            
     setMessages(prev => [...prev, userMsg]);
     setMyInput("");
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/chat', {
+      const response = await fetch('http://localhost:8080/nongcetong/api/chat/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          // 比赛加分：注入实时环境数据作为 System Prompt
-          messages: [
-            { role: 'system', content: '你是一个专业的智慧农业专家。当前实时数据：气温26.5°C，土壤湿度42%。请结合数据给出建议。' },
-            ...messages.filter(m => m.id !== 'welcome'), 
-            userText 
-          ] 
-        }),
+        body: JSON.stringify({ message: userText, sessionId: sessionId }),
       });
 
       if (!response.ok) throw new Error("API连接失败");
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
+      const data = await response.json();
       const assistantId = (Date.now() + 1).toString();
       
-      // 先放一个空的助手气泡
-      setMessages(prev => [...prev, { id: assistantId, role: 'assistant', content: "" }]);
-
-      let accumulatedContent = "";
-
-      while (true) {
-        const { done, value } = await reader!.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value);
-        // 解析 Vercel AI SDK 的数据流格式 (0:"内容")
-        const lines = chunk.split('\n');
-        lines.forEach(line => {
-          if (line.startsWith('0:')) {
-            const content = line.slice(2)
-              .replace(/^"|"$/g, '')
-              .replace(/\\n/g, '\n')
-              .replace(/\\"/g, '"');
-            
-            accumulatedContent += content;
-            // 实时更新气泡内容，产生打字机效果
-            setMessages(prev => prev.map(m => 
-              m.id === assistantId ? { ...m, content: accumulatedContent } : m
-            ));
-          }
-        });
-      }
+      // 添加助手响应气泡
+      setMessages(prev => [...prev, { id: assistantId, role: 'assistant', content: data.data.reply }]);
     } catch (error) {
       console.error("Chat Error:", error);
-      setMessages(prev => [...prev, { id: 'err', role: 'assistant', content: "连接传感器中枢失败，请检查 API 余额或网络。" }]);
+      setMessages(prev => [...prev, { id: 'err', role: 'assistant', content: "AI服务暂时不可用，请稍后再试。" }]);
     } finally {
       setIsLoading(false);
     }

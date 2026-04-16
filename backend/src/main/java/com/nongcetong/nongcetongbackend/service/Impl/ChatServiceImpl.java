@@ -33,7 +33,13 @@ public class ChatServiceImpl implements ChatService {
         List<Map<String, String>> messages = buildMessages(history);
 
         // 3. 调用大模型
-        String reply = llmClient.chat(messages);
+        String reply;
+        try {
+            reply = llmClient.chat(messages);
+        } catch (Exception e) {
+            // 处理LLM API调用失败的情况
+            reply = "抱歉，当前无法连接到AI服务。请检查API密钥配置或稍后再试。";
+        }
 
         // 4. 保存模型回复
         saveMessage(dto.getSessionId(), userId, "assistant", reply);
@@ -52,14 +58,21 @@ public class ChatServiceImpl implements ChatService {
         // 3. 用 StringBuilder 收集完整回复，结束后存库
         StringBuilder fullReply = new StringBuilder();
 
-        return llmClient.chatStream(messages)
-                .doOnNext(fullReply::append)
-                .doOnComplete(() ->
-                        saveMessage(dto.getSessionId(), userId, "assistant", fullReply.toString())
-                )
-                .doOnError(e ->
-                        saveMessage(dto.getSessionId(), userId, "assistant", "[ERROR] " + e.getMessage())
-                );
+        try {
+            return llmClient.chatStream(messages)
+                    .doOnNext(fullReply::append)
+                    .doOnComplete(() ->
+                            saveMessage(dto.getSessionId(), userId, "assistant", fullReply.toString())
+                    )
+                    .doOnError(e -> {
+                        saveMessage(dto.getSessionId(), userId, "assistant", "[ERROR] " + e.getMessage());
+                    });
+        } catch (Exception e) {
+            // 处理LLM API调用失败的情况
+            String errorMessage = "抱歉，当前无法连接到AI服务。请检查API密钥配置或稍后再试。";
+            saveMessage(dto.getSessionId(), userId, "assistant", errorMessage);
+            return Flux.just(errorMessage);
+        }
     }
 
 

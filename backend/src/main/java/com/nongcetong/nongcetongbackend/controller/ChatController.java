@@ -11,7 +11,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
@@ -29,14 +28,12 @@ public class ChatController {
 
     @PostMapping("/send")
     public Result<ChatResponseDTO> send(
-            @RequestBody @Valid ChatRequestDTO dto,
-            @AuthenticationPrincipal String username,
-            HttpServletRequest request) {
+            @RequestBody @Valid ChatRequestDTO dto) {
 
-        // 从 SecurityContext 取 userId
+        // 处理未登录用户，使用默认userId为1
         Long userId = getUserIdFromContext();
         ChatResponseDTO response = chatService.chat(dto, userId);
-        return Result.success(chatService.chat(dto, userId));
+        return Result.success(response);
     }
 
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -44,6 +41,7 @@ public class ChatController {
             @RequestParam @NotBlank String message,
             @RequestParam @NotBlank String sessionId) {
 
+        // 处理未登录用户，使用默认userId为1
         Long userId = getUserIdFromContext();
 
         ChatRequestDTO dto = new ChatRequestDTO();
@@ -65,10 +63,16 @@ public class ChatController {
 
 
     private Long getUserIdFromContext() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        // JWT filter 里存的是 username，这里你可以改成存 userId
-        // 建议在 JwtAuthenticationFilter 里把 userId 存到 details 里
-        return Long.valueOf(auth.getName());
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName())) {
+                return Long.valueOf(auth.getName());
+            }
+        } catch (Exception e) {
+            // 异常处理，使用默认userId
+        }
+        // 未登录用户使用默认userId为1
+        return 1L;
     }
 }
 
