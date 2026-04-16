@@ -10,6 +10,6 @@ cd ..
 
 # 启动前端
 Write-Host "启动前端服务..."
-cd frontend/my-agri-project
+cd frontend
 npm install
 npm run dev
