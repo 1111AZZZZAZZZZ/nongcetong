@@ -1,0 +1,21 @@
+{
+  "name": "农策通",
+  "short_name": "农策通",
+  "description": "农业全局指挥中枢与 AI 诊断专家",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#166534",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
